@@ -6,8 +6,12 @@ import ComparisonTable from './components/ComparisonTable';
 import LiveExecutionTable from './components/LiveExecutionTable';
 import ExportButton from './components/ExportButton';
 import Icon from './components/Icon';
-import { runExperiment, getMetrics } from './api';
+import Toast from './components/Toast';
+import { runExperiment, getMetrics, resetSystem } from './api';
 import WorkerStats from './components/WorkerStats';
+import DatasetInsights from './components/DatasetInsights';
+import ArchitectureInfo from './components/ArchitectureInfo';
+import LogsPanel from './components/LogsPanel';
 
 const STORAGE_KEY = 'scheduler_state';
 
@@ -26,28 +30,35 @@ export default function App() {
   const saved = loadState();
   const [taskCount, setTaskCount] = useState(saved?.taskCount ?? 0);
   const [algorithm, setAlgorithm] = useState(saved?.algorithm ?? 'FCFS');
+  const [quantum, setQuantum] = useState(saved?.quantum ?? 2);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [latestId, setLatestId] = useState(saved?.latestId ?? null);
   const [metrics, setMetrics] = useState(saved?.metrics ?? null);
   const [results, setResults] = useState(saved?.results ?? []);
+  const [insights, setInsights] = useState(saved?.insights ?? null);
   const [activeNav, setActiveNav] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+  const [toast, setToast] = useState({ message: '', type: 'error' });
+
+  const showToast = (message, type = 'error') => setToast({ message, type });
+  const clearToast = () => setToast({ message: '', type: 'error' });
 
   useEffect(() => {
-    saveState({ taskCount, algorithm, latestId, metrics, results });
+    saveState({ taskCount, algorithm, quantum, latestId, metrics, results, insights });
   }, [taskCount, algorithm, latestId, metrics, results]);
 
   const handleRun = useCallback(async () => {
     if (taskCount === 0) {
-      setError('Upload a dataset first');
+      showToast('Please upload a dataset before running an experiment.', 'error');
       return;
     }
 
     setLoading(true);
     setError('');
     try {
-      const { experiment_id } = await runExperiment(algorithm);
+      const { experiment_id } = await runExperiment(algorithm, quantum);
       setLatestId(experiment_id);
 
       const m = await getMetrics(experiment_id);
@@ -57,12 +68,13 @@ export default function App() {
         ...prev,
         { experiment_id, algorithm, ...m },
       ]);
+      showToast('Experiment completed successfully!', 'success');
     } catch (err) {
-      setError(err.message);
+      showToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
-  }, [taskCount, algorithm]);
+  }, [taskCount, algorithm, quantum]);
 
   const clearResults = () => {
     setResults([]);
@@ -74,10 +86,24 @@ export default function App() {
     sessionStorage.removeItem(STORAGE_KEY);
     setTaskCount(0);
     setAlgorithm('FCFS');
+    setQuantum(2);
+    setInsights(null);
     setLatestId(null);
     setMetrics(null);
     setResults([]);
     setError('');
+    setResetMsg('');
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm('Reset the entire system? This will delete all tasks, experiments, and results.')) return;
+    try {
+      await resetSystem();
+      handleRefresh();
+      showToast('System reset successfully.', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   };
 
   const handleNav = (id) => {
@@ -107,6 +133,9 @@ export default function App() {
 
   return (
     <div className="layout">
+      {/* ── Toast Notification ── */}
+      <Toast message={toast.message} type={toast.type} onClose={clearToast} />
+
       {/* ── Mobile Overlay ── */}
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
 
@@ -156,6 +185,14 @@ export default function App() {
             <span className="page-breadcrumb">Home / Dashboard</span>
           </div>
           <div className="topbar-right">
+            <button
+              className="btn btn-outline"
+              onClick={handleReset}
+              title="Reset System"
+              style={{ fontSize: '0.78rem', padding: '0.3rem 0.75rem', color: 'var(--error)', borderColor: 'var(--error)' }}
+            >
+              Reset System
+            </button>
             <button className="btn-icon" onClick={handleRefresh} title="Reset Dashboard">
               <Icon name="refresh" size={18} />
             </button>
@@ -199,7 +236,7 @@ export default function App() {
 
           {/* Upload + Experiment Panel */}
           <div id="section-upload" className="panel-grid">
-            <FileUpload onUploaded={setTaskCount} />
+            <FileUpload onUploaded={setTaskCount} onInsights={setInsights} onError={(msg) => showToast(msg, 'error')} />
 
             <div id="section-experiments" className="panel">
               <div className="panel-header">
@@ -209,7 +246,7 @@ export default function App() {
                 )}
               </div>
               <div className="panel-body">
-                <AlgorithmSelector selected={algorithm} onChange={setAlgorithm} />
+                <AlgorithmSelector selected={algorithm} onChange={setAlgorithm} quantum={quantum} onQuantumChange={setQuantum} />
                 <div className="panel-actions">
                   <button
                     className={`btn btn-primary ${loading ? 'btn-loading' : ''}`}
@@ -233,6 +270,9 @@ export default function App() {
             </div>
           </div>
 
+          {/* Dataset Insights */}
+          {insights && <DatasetInsights insights={insights} />}
+
           {/* Metrics */}
           <div id="section-export">
             <MetricsDisplay metrics={metrics} algorithm={algorithm} />
@@ -241,8 +281,14 @@ export default function App() {
           {/* Live Execution */}
           <LiveExecutionTable />
 
+          {/* Execution Logs */}
+          <LogsPanel />
+
           {/* Worker Stats */}
           <WorkerStats />
+
+          {/* Architecture */}
+          <ArchitectureInfo />
 
           {/* Comparison Table */}
           <div id="section-comparison">

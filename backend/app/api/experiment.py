@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Literal
+from typing import Literal, Optional
 
 from app.db.session import get_db
 from app.models.task import Task
@@ -12,16 +12,11 @@ from app.services.dispatcher import dispatch
 
 router = APIRouter()
 
-ALGORITHMS = {
-    "FCFS": schedule_fcfs,
-    "SJF": schedule_sjf,
-    "RR": schedule_round_robin,
-}
-
 
 class RunExperimentRequest(BaseModel):
     algorithm: Literal["FCFS", "SJF", "RR"]
     num_workers: int = 10
+    quantum: Optional[int] = 2
 
 
 @router.post("/run-experiment")
@@ -35,8 +30,12 @@ def run_experiment(body: RunExperimentRequest, db: Session = Depends(get_db)):
         for t in tasks
     ]
 
-    scheduler_fn = ALGORITHMS[body.algorithm]
-    scheduled = scheduler_fn(task_dicts)
+    if body.algorithm == "RR":
+        scheduled = schedule_round_robin(task_dicts, quantum=body.quantum)
+    elif body.algorithm == "SJF":
+        scheduled = schedule_sjf(task_dicts)
+    else:
+        scheduled = schedule_fcfs(task_dicts)
 
     experiment = Experiment(algorithm=body.algorithm)
     db.add(experiment)

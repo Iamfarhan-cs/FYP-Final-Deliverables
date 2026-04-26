@@ -23,11 +23,11 @@ export default function MetricsDisplay({ metrics, algorithm }) {
           </div>
           <div className="stat-card">
             <div className="stat-label">Makespan</div>
-            <div className="stat-value text-orange">{metrics.makespan ?? '—'} <span className="stat-unit">ms</span></div>
+            <div className="stat-value text-orange">{metrics.makespan != null ? formatNum(metrics.makespan) : '—'} <span className="stat-unit">ms</span></div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Throughput</div>
-            <div className="stat-value text-success">{metrics.throughput ?? '—'} <span className="stat-unit">tasks/ms</span></div>
+            <div className="stat-value text-success">{metrics.throughput != null ? formatNum(metrics.throughput) : '—'} <span className="stat-unit">tasks/sec</span></div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Total Tasks</div>

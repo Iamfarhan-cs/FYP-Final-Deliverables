@@ -4,6 +4,7 @@ from sqlalchemy import func
 
 from app.db.session import get_db
 from app.models.experiment_task import ExperimentTask
+from app.models.task import Task
 
 router = APIRouter()
 
@@ -15,8 +16,10 @@ def get_metrics(experiment_id: int, db: Session = Depends(get_db)):
             func.avg(ExperimentTask.waiting_time),
             func.avg(ExperimentTask.turnaround_time),
             func.count(ExperimentTask.id),
-            func.max(ExperimentTask.turnaround_time),
+            func.max(Task.finish_time),
+            func.min(Task.arrival_time),
         )
+        .join(Task, ExperimentTask.task_id == Task.id)
         .filter(ExperimentTask.experiment_id == experiment_id)
         .first()
     )
@@ -25,8 +28,14 @@ def get_metrics(experiment_id: int, db: Session = Depends(get_db)):
     if total_tasks == 0:
         raise HTTPException(status_code=404, detail="No data found for this experiment")
 
-    makespan = result[3]
-    throughput = round(total_tasks / makespan, 4) if makespan and makespan > 0 else 0
+    max_finish_time = result[3]
+    min_arrival_time = result[4]
+    makespan = (
+        round(max_finish_time - min_arrival_time, 4)
+        if max_finish_time is not None and min_arrival_time is not None
+        else 0
+    )
+    throughput = round(total_tasks / makespan, 4) if makespan > 0 else 0
 
     return {
         "avg_waiting_time": round(result[0], 2),

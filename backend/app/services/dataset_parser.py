@@ -98,20 +98,25 @@ def _parse_txt(text: str) -> list[dict]:
 
 def _validate_tasks(tasks: list[dict]) -> None:
     count = len(tasks)
+    if count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Dataset is empty. Upload a file with 100–1000 tasks.",
+        )
     if count < 100 or count > 1000:
         raise HTTPException(
             status_code=400,
-            detail=f"Task count must be between 100 and 1000, got {count}",
+            detail=f"Dataset must contain 100–1000 tasks (got {count}).",
         )
 
-    for i, t in enumerate(tasks):
+    for t in tasks:
         if t["execution_time"] <= 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Task {t['id']}: execution_time must be > 0",
+                detail=f"Task {t['id']}: execution_time must be a positive integer.",
             )
         if t["arrival_time"] < 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Task {t['id']}: arrival_time must be >= 0",
+                detail=f"Task {t['id']}: arrival_time must be >= 0.",
             )

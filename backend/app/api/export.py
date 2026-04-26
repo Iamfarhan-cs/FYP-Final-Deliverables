@@ -22,6 +22,9 @@ def export_experiment(experiment_id: int, db: Session = Depends(get_db)):
         db.query(
             ExperimentTask.task_id,
             Task.execution_time,
+            Task.arrival_time,
+            Task.start_time,
+            Task.finish_time,
             ExperimentTask.waiting_time,
             ExperimentTask.turnaround_time,
             ExperimentTask.worker_id,
@@ -37,9 +40,19 @@ def export_experiment(experiment_id: int, db: Session = Depends(get_db)):
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["task_id", "algorithm", "execution_time", "waiting_time", "turnaround_time", "worker_id"])
+    writer.writerow([
+        "task_id", "execution_time", "arrival_time",
+        "start_time", "finish_time",
+        "waiting_time", "turnaround_time",
+        "worker_id", "algorithm", "experiment_id",
+    ])
     for r in rows:
-        writer.writerow([r.task_id, experiment.algorithm, r.execution_time, r.waiting_time, r.turnaround_time, r.worker_id])
+        writer.writerow([
+            r.task_id, r.execution_time, r.arrival_time,
+            r.start_time, r.finish_time,
+            r.waiting_time, r.turnaround_time,
+            r.worker_id, experiment.algorithm, experiment_id,
+        ])
     output.seek(0)
 
     return StreamingResponse(

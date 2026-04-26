@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
-import { uploadDataset } from '../api';
+import { uploadDataset, getDatasetInsights } from '../api';
 import Icon from './Icon';
 
-export default function FileUpload({ onUploaded }) {
+export default function FileUpload({ onUploaded, onInsights, onError }) {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [fileName, setFileName] = useState('');
@@ -15,6 +15,7 @@ export default function FileUpload({ onUploaded }) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (!['csv', 'txt'].includes(ext)) {
       setStatus('error:Only CSV or TXT files are supported');
+      if (onError) onError('Only CSV or TXT files are supported.');
       return;
     }
 
@@ -25,8 +26,15 @@ export default function FileUpload({ onUploaded }) {
       const data = await uploadDataset(file);
       setStatus(`success:${data.count} tasks uploaded successfully`);
       onUploaded(data.count);
+      if (onInsights) {
+        try {
+          const insights = await getDatasetInsights();
+          onInsights(insights);
+        } catch { /* non-critical */ }
+      }
     } catch (err) {
       setStatus(`error:${err.message}`);
+      if (onError) onError(err.message);
     } finally {
       setLoading(false);
     }
